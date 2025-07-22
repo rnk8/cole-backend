@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Información del Colegio</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #e74c3c;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            margin: 0;
+        }
+        
+        .hero-section {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            margin: 2rem 0;
+            padding: 3rem 2rem;
+            text-align: center;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+        
+        .hero-title {
+            color: white;
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .hero-subtitle {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1.3rem;
+            margin-bottom: 2rem;
+        }
+        
+        .feature-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 2rem;
+            margin: 1rem 0;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            height: 100%;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            display: block;
+        }
+        
+        .feature-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--primary-color);
+        }
+        
+        .feature-description {
+            color: #666;
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+        
+        .btn-custom {
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            display: inline-block;
+            margin: 0.5rem;
+        }
+        
+        .btn-primary-custom {
+            background: var(--secondary-color);
+            color: white;
+            border: 2px solid var(--secondary-color);
+        }
+        
+        .btn-primary-custom:hover {
+            background: transparent;
+            color: var(--secondary-color);
+            transform: scale(1.05);
+        }
+        
+        .btn-danger-custom {
+            background: var(--accent-color);
+            color: white;
+            border: 2px solid var(--accent-color);
+        }
+        
+        .btn-danger-custom:hover {
+            background: transparent;
+            color: var(--accent-color);
+            transform: scale(1.05);
+        }
+        
+        .btn-success-custom {
+            background: var(--success-color);
+            color: white;
+            border: 2px solid var(--success-color);
+        }
+        
+        .btn-success-custom:hover {
+            background: transparent;
+            color: var(--success-color);
+            transform: scale(1.05);
+        }
+        
+        .stats-card {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 10px;
+            padding: 1.5rem;
+            text-align: center;
+            margin: 1rem 0;
+            box-shadow: 0 3px 15px rgba(0,0,0,0.1);
+        }
+        
+        .stats-number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--secondary-color);
+        }
+        
+        .stats-label {
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .footer {
+            background: rgba(0, 0, 0, 0.1);
+            color: white;
+            text-align: center;
+            padding: 2rem 0;
+            margin-top: 3rem;
+        }
+        
+        .api-endpoints {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+        
+        .endpoint-item {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .endpoint-item:last-child {
+            border-bottom: none;
+        }
+        
+        .method-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-right: 1rem;
+            min-width: 60px;
+            text-align: center;
+        }
+        
+        .method-get {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .method-post {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .navbar-custom {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+        
+        .navbar-brand {
+            color: white !important;
+            font-weight: 700;
+            font-size: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-custom">
+        <div class="container">
+            <span class="navbar-brand">
+                <i class="fas fa-graduation-cap me-2"></i>
+                Sistema de Información del Colegio
+            </span>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Hero Section -->
+        <div class="hero-section">
+            <h1 class="hero-title">
+                <i class="fas fa-school mb-3"></i><br>
+                Bienvenido al Sistema del Colegio
+            </h1>
+            <p class="hero-subtitle">
+                Plataforma integral para la gestión académica moderna
+            </p>
+            <div class="mt-4">
+                <a href="/admin/" class="btn-custom btn-primary-custom">
+                    <i class="fas fa-cog me-2"></i>Panel de Administración
+                </a>
+                <a href="/api/" class="btn-custom btn-success-custom">
+                    <i class="fas fa-code me-2"></i>API REST
+                </a>
+            </div>
+        </div>
+
+        <!-- Features Section -->
+        <div class="row">
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <i class="fas fa-users-cog feature-icon" style="color: var(--secondary-color);"></i>
+                    <h3 class="feature-title">Panel de Administración</h3>
+                    <p class="feature-description">
+                        Interfaz completa para gestionar usuarios, cursos, materias y toda la información del colegio.
+                    </p>
+                    <a href="/admin/" class="btn-custom btn-primary-custom">
+                        <i class="fas fa-arrow-right me-1"></i>Acceder
+                    </a>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <i class="fas fa-code feature-icon" style="color: var(--success-color);"></i>
+                    <h3 class="feature-title">API REST</h3>
+                    <p class="feature-description">
+                        API completa con autenticación JWT, permisos granulares y documentación interactiva.
+                    </p>
+                    <a href="/api/" class="btn-custom btn-success-custom">
+                        <i class="fas fa-arrow-right me-1"></i>Explorar API
+                    </a>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <i class="fas fa-mobile-alt feature-icon" style="color: var(--warning-color);"></i>
+                    <h3 class="feature-title">Asistencia QR</h3>
+                    <p class="feature-description">
+                        Sistema de registro de asistencia mediante códigos QR con validación de ubicación y horario.
+                    </p>
+                    <a href="/api/asistencia/qr/" class="btn-custom" style="background: var(--warning-color); color: white; border: 2px solid var(--warning-color);">
+                        <i class="fas fa-qrcode me-1"></i>Ver Endpoint
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- API Endpoints Section -->
+        <div class="row mt-5">
+            <div class="col-md-6">
+                <h3 style="color: white; margin-bottom: 1.5rem;">
+                    <i class="fas fa-link me-2"></i>Endpoints Principales
+                </h3>
+                <div class="api-endpoints">
+                    <div class="endpoint-item">
+                        <span class="method-badge method-post">POST</span>
+                        <span>/api/auth/login/</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <span class="method-badge method-get">GET</span>
+                        <span>/api/alumnos/</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <span class="method-badge method-get">GET</span>
+                        <span>/api/notas/</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <span class="method-badge method-post">POST</span>
+                        <span>/api/asistencia/qr/</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <span class="method-badge method-get">GET</span>
+                        <span>/api/prediccion/{alumno_id}/{periodo}/</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <h3 style="color: white; margin-bottom: 1.5rem;">
+                    <i class="fas fa-users me-2"></i>Usuarios de Prueba
+                </h3>
+                <div class="api-endpoints">
+                    <div class="endpoint-item">
+                        <i class="fas fa-user-shield" style="color: var(--accent-color); margin-right: 1rem;"></i>
+                        <span><strong>Admin:</strong> admin / admin123</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <i class="fas fa-chalkboard-teacher" style="color: var(--secondary-color); margin-right: 1rem;"></i>
+                        <span><strong>Maestros:</strong> maestro1-3 / maestro123</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <i class="fas fa-user-graduate" style="color: var(--success-color); margin-right: 1rem;"></i>
+                        <span><strong>Alumnos:</strong> alumno1-6 / alumno123</span>
+                    </div>
+                    <div class="endpoint-item">
+                        <i class="fas fa-users" style="color: var(--warning-color); margin-right: 1rem;"></i>
+                        <span><strong>Padres:</strong> padre1-4 / padre123</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Features Overview -->
+        <div class="row mt-5">
+            <div class="col-md-3">
+                <div class="stats-card">
+                    <div class="stats-number">📚</div>
+                    <div class="stats-label">Gestión de Notas</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card">
+                    <div class="stats-number">📱</div>
+                    <div class="stats-label">Asistencia QR</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card">
+                    <div class="stats-number">🤖</div>
+                    <div class="stats-label">Predicción IA</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card">
+                    <div class="stats-number">🔐</div>
+                    <div class="stats-label">Permisos JWT</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="row mt-5">
+            <div class="col-12">
+                <div class="hero-section">
+                    <h3 style="color: white; margin-bottom: 2rem;">
+                        <i class="fas fa-rocket me-2"></i>Acciones Rápidas
+                    </h3>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <a href="/admin/core/alumno/" class="btn-custom btn-primary-custom w-100">
+                                <i class="fas fa-user-graduate me-2"></i>Gestionar Alumnos
+                            </a>
+                        </div>
+                        <div class="col-md-4">
+                            <a href="/admin/core/nota/" class="btn-custom btn-success-custom w-100">
+                                <i class="fas fa-clipboard-list me-2"></i>Ver Notas
+                            </a>
+                        </div>
+                        <div class="col-md-4">
+                            <a href="/admin/core/asistencia/" class="btn-custom btn-danger-custom w-100">
+                                <i class="fas fa-calendar-check me-2"></i>Registro Asistencia
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+        <div class="container">
+            <p class="mb-0">
+                <i class="fas fa-heart" style="color: var(--accent-color);"></i>
+                Sistema de Información del Colegio - Desarrollado con Django REST Framework
+            </p>
+            <p class="mb-0">
+                <small>Versión 1.0 | API Documentación disponible en <strong>/api/</strong></small>
+            </p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html> 
