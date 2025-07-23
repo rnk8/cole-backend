@@ -17,6 +17,7 @@ urlpatterns = [
     # Maestros
     path('maestros/', views.MaestroListCreateView.as_view(), name='maestro-list-create'),
     path('maestros/<int:pk>/', views.MaestroDetailView.as_view(), name='maestro-detail'),
+    path('maestro/dashboard/', views.MaestroDashboardView.as_view(), name='maestro-dashboard'),
     
     # Cursos
     path('cursos/', views.CursoListCreateView.as_view(), name='curso-list-create'),
@@ -46,6 +47,10 @@ urlpatterns = [
     # Participaciones
     path('participaciones/', views.ParticipacionListCreateView.as_view(), name='participacion-list-create'),
     path('participaciones/<int:pk>/', views.ParticipacionDetailView.as_view(), name='participacion-detail'),
+    
+    # Vistas para el Dashboard del Padre
+    path('padre/dashboard/', views.PadreDashboardView.as_view(), name='padre-dashboard'),
+    path('padre/hijo/<int:alumno_id>/', views.DetalleHijoView.as_view(), name='padre-hijo-detalle'),
     
     # Predicción de rendimiento
     path('prediccion/<int:alumno_id>/<str:periodo>/', views.PrediccionRendimientoView.as_view(), name='prediccion-rendimiento'),

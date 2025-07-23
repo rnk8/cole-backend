@@ -43,6 +43,21 @@ class IsPadre(permissions.BasePermission):
         except Padre.DoesNotExist:
             return False
 
+class IsPadreDeAlumno(permissions.BasePermission):
+    """
+    Permiso para verificar si el usuario es padre del alumno al que intenta acceder.
+    """
+    def has_object_permission(self, request, view, obj):
+        if not request.user.is_authenticated:
+            return False
+        
+        try:
+            padre = Padre.objects.get(user=request.user)
+            # El 'obj' aquí es una instancia de Alumno
+            return obj in padre.hijos.all()
+        except Padre.DoesNotExist:
+            return False
+
 class IsMaestro(permissions.BasePermission):
     """
     Permiso para verificar si el usuario es un maestro

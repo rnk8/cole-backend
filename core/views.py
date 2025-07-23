@@ -21,13 +21,17 @@ from .serializers import (
     UserSerializer, ColegioSerializer, CursoSerializer, MateriaSerializer,
     MaestroSerializer, MaestroListSerializer, AlumnoSerializer, AlumnoListSerializer,
     PadreSerializer, NotaSerializer, AsistenciaSerializer, ParticipacionSerializer,
-    QRAsistenciaSerializer, PrediccionSerializer
+    QRAsistenciaSerializer, PrediccionSerializer, HijoDashboardSerializer, 
+    DetalleHijoSerializer, MaestroDashboardSerializer
 )
 from .permissions import (
     IsMaestroTutor, IsAlumno, IsPadre, IsMaestro,
     CanAccessCurso, CanAccessAlumno, CanAccessNota, CanModifyNota,
-    CanAccessAsistencia, CanAccessParticipacion
+    CanAccessAsistencia, CanAccessParticipacion, IsPadre
 )
+from django.db.models import Avg, Count, Q, Case, When, FloatField, Prefetch
+from django.db.models.functions import Cast
+from datetime import timedelta
 
 # Vistas de autenticación
 class CustomTokenObtainPairView(TokenObtainPairView):
@@ -97,6 +101,71 @@ class MaestroDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Maestro.objects.all()
     serializer_class = MaestroSerializer
     permission_classes = [permissions.IsAdminUser]
+
+class MaestroDashboardView(APIView):
+    """
+    Endpoint principal para el dashboard del maestro tutor.
+    Devuelve toda la información necesaria para gestionar su curso.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        try:
+            maestro = Maestro.objects.get(user=request.user)
+            curso_tutor = maestro.cursos_tutor.first()
+
+            if not curso_tutor:
+                return Response(
+                    {'error': 'No eres tutor de ningún curso.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            # Obtener materias del curso
+            materias = Materia.objects.filter(curso=curso_tutor)
+
+            # Obtener período de la query, o usar el más reciente
+            periodos_disponibles = list(Nota.objects.filter(alumno__curso=curso_tutor).values_list('periodo', flat=True).distinct().order_by('-periodo'))
+            periodo_seleccionado = request.query_params.get('periodo', periodos_disponibles[0] if periodos_disponibles else None)
+            
+            # Obtener alumnos con sus notas y participaciones
+            if periodo_seleccionado:
+                alumnos = Alumno.objects.filter(curso=curso_tutor).prefetch_related(
+                    Prefetch(
+                        'notas',
+                        queryset=Nota.objects.filter(periodo=periodo_seleccionado),
+                        to_attr='notas_periodo'
+                    ),
+                    'participaciones'
+                ).select_related('user')
+                
+                # Para el serializer, necesitamos pasar las notas filtradas
+                for alumno in alumnos:
+                    alumno.notas_filtradas = alumno.notas_periodo
+            else:
+                # Si no hay período seleccionado, obtener alumnos sin notas filtradas
+                alumnos = Alumno.objects.filter(curso=curso_tutor).prefetch_related(
+                    'notas', 'participaciones'
+                ).select_related('user')
+
+            data = {
+                'curso': curso_tutor,
+                'materias': materias,
+                'alumnos': alumnos,
+                'periodos': periodos_disponibles
+            }
+            
+            serializer = MaestroDashboardSerializer(data)
+            return Response(serializer.data)
+
+        except Maestro.DoesNotExist:
+            return Response({'error': 'Perfil de maestro no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            # Log the error for debugging
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error en MaestroDashboardView: {str(e)}")
+            return Response({'error': 'Error interno del servidor.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 # Vistas para Cursos
 class CursoListCreateView(generics.ListCreateAPIView):
@@ -277,6 +346,312 @@ class NotaDetailView(generics.RetrieveUpdateDestroyAPIView):
         if self.request.method in ['PUT', 'PATCH', 'DELETE']:
             return [permissions.IsAuthenticated(), CanModifyNota()]
         return [permissions.IsAuthenticated(), CanAccessNota()]
+
+# Vistas para el Dashboard del Padre
+
+class PadreDashboardView(APIView):
+    """
+    Vista mejorada para el dashboard del padre. Muestra una lista de sus hijos con información completa.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsPadre]
+
+    def get(self, request):
+        try:
+            padre = Padre.objects.get(user=request.user)
+            
+            # Determinar los dos períodos más recientes con notas
+            periodos_recientes = list(Nota.objects.filter(
+                alumno__in=padre.hijos.all()
+            ).order_by('-periodo').values_list('periodo', flat=True).distinct()[:2])
+            
+            periodo_actual = periodos_recientes[0] if periodos_recientes else None
+            periodo_anterior = periodos_recientes[1] if len(periodos_recientes) > 1 else None
+
+            # Calcular datos de los últimos 30 días
+            hace_30_dias = timezone.now().date() - timedelta(days=30)
+            
+            hijos = padre.hijos.all().select_related('user', 'curso').annotate(
+                # Promedio de notas del período actual
+                promedio_periodo=Avg(
+                    'notas__valor', 
+                    filter=Q(notas__periodo=periodo_actual)
+                ),
+                # Promedio de notas del período anterior (para comparar tendencia)
+                promedio_anterior=Avg(
+                    'notas__valor', 
+                    filter=Q(notas__periodo=periodo_anterior)
+                ) if periodo_anterior else None,
+                
+                # Estadísticas de asistencia (últimos 30 días)
+                total_dias_clase=Count(
+                    'asistencias',
+                    filter=Q(asistencias__fecha__gte=hace_30_dias)
+                ),
+                dias_presente=Count(
+                    'asistencias',
+                    filter=Q(asistencias__fecha__gte=hace_30_dias, asistencias__presente=True)
+                ),
+                dias_ausente_mes=Count(
+                    'asistencias',
+                    filter=Q(asistencias__fecha__gte=hace_30_dias, asistencias__presente=False)
+                ),
+                
+                # Estadísticas de participación (último mes)
+                total_participaciones_mes=Count(
+                    'participaciones',
+                    filter=Q(participaciones__fecha__gte=hace_30_dias)
+                ),
+                promedio_participaciones=Avg(
+                    'participaciones__valor',
+                    filter=Q(participaciones__fecha__gte=hace_30_dias)
+                )
+            ).annotate(
+                # Calcular porcentaje de asistencia
+                porcentaje_asistencia=Case(
+                    When(total_dias_clase__gt=0, then=(Cast('dias_presente', FloatField()) * 100.0 / Cast('total_dias_clase', FloatField()))),
+                    default=100.0,  # Si no hay datos, asumir 100%
+                    output_field=FloatField()
+                )
+            )
+
+            serializer = HijoDashboardSerializer(hijos, many=True)
+            
+            # Agregar información adicional del dashboard
+            dashboard_data = {
+                'hijos': serializer.data,
+                'resumen_general': self._generar_resumen_general(hijos),
+                'periodo_actual': periodo_actual,
+                'alertas_importantes': self._generar_alertas_importantes(hijos)
+            }
+            
+            return Response(dashboard_data)
+            
+        except Padre.DoesNotExist:
+            return Response(
+                {'error': 'No se encontró un perfil de padre para este usuario.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+    
+    def _generar_resumen_general(self, hijos):
+        """Generar resumen general del dashboard"""
+        total_hijos = len(hijos)
+        if total_hijos == 0:
+            return {}
+        
+        # Calcular estadísticas generales
+        promedios_validos = [h.promedio_periodo for h in hijos if h.promedio_periodo is not None]
+        asistencias_validas = [h.porcentaje_asistencia for h in hijos if h.porcentaje_asistencia is not None]
+        
+        return {
+            'total_hijos': total_hijos,
+            'promedio_familiar': round(sum(promedios_validos) / len(promedios_validos), 1) if promedios_validos else None,
+            'asistencia_promedio': round(sum(asistencias_validas) / len(asistencias_validas), 1) if asistencias_validas else None,
+            'hijos_rendimiento_alto': len([p for p in promedios_validos if p >= 85]),
+            'hijos_necesitan_atencion': len([p for p in promedios_validos if p < 70])
+        }
+    
+    def _generar_alertas_importantes(self, hijos):
+        """Generar alertas importantes para el dashboard principal"""
+        alertas = []
+        
+        for hijo in hijos:
+            # Alertas críticas de asistencia
+            if hasattr(hijo, 'porcentaje_asistencia') and hijo.porcentaje_asistencia < 75:
+                alertas.append({
+                    'tipo': 'asistencia_critica',
+                    'hijo_id': hijo.id,
+                    'hijo_nombre': hijo.user.get_full_name(),
+                    'mensaje': f'Asistencia muy baja: {hijo.porcentaje_asistencia:.0f}%',
+                    'nivel': 'danger'
+                })
+            
+            # Alertas académicas críticas
+            if hasattr(hijo, 'promedio_periodo') and hijo.promedio_periodo and hijo.promedio_periodo < 60:
+                alertas.append({
+                    'tipo': 'academico_critico',
+                    'hijo_id': hijo.id,
+                    'hijo_nombre': hijo.user.get_full_name(),
+                    'mensaje': f'Promedio muy bajo: {hijo.promedio_periodo:.1f}',
+                    'nivel': 'danger'
+                })
+        
+        return alertas[:5]  # Máximo 5 alertas importantes
+
+class DetalleHijoView(APIView):
+    """
+    Vista mejorada para ver el detalle académico completo de un hijo específico.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsPadre]
+
+    def get(self, request, alumno_id):
+        try:
+            padre = Padre.objects.get(user=request.user)
+            hijo = get_object_or_404(padre.hijos.all(), id=alumno_id)
+
+            # Obtener todos los períodos disponibles
+            periodos_disponibles = list(Nota.objects.filter(alumno=hijo).values_list('periodo', flat=True).distinct().order_by('-periodo'))
+            periodo_seleccionado = request.query_params.get('periodo', periodos_disponibles[0] if periodos_disponibles else None)
+
+            # Filtrar asistencias (últimos 60 días para mejor contexto)
+            fecha_limite = timezone.now().date() - timedelta(days=60)
+            asistencias = Asistencia.objects.filter(
+                alumno=hijo, 
+                fecha__gte=fecha_limite
+            ).order_by('-fecha')
+
+            # Pre-cargar materias con sus notas y participaciones
+            materias = Materia.objects.filter(curso=hijo.curso).prefetch_related(
+                Prefetch(
+                    'notas',
+                    queryset=Nota.objects.filter(alumno=hijo, periodo=periodo_seleccionado),
+                    to_attr='notas_filtradas'
+                ),
+                Prefetch(
+                    'participaciones',
+                    queryset=Participacion.objects.filter(
+                        alumno=hijo, 
+                        fecha__gte=timezone.now().date() - timedelta(days=90)
+                    ).order_by('-fecha'),
+                    to_attr='participaciones_filtradas'
+                )
+            )
+
+            # Serializar asistencias para el contexto
+            asistencias_serializadas = [
+                {
+                    'fecha': asistencia.fecha,
+                    'presente': asistencia.presente,
+                    'observaciones': asistencia.observaciones,
+                    'hora_llegada': asistencia.hora_llegada,
+                    'registrado_por_qr': asistencia.registrado_por_qr
+                }
+                for asistencia in asistencias
+            ]
+
+            # Construir el contexto completo para el serializer
+            hijo_context = {
+                'id': hijo.id,
+                'nombre_completo': hijo.user.get_full_name(),
+                'curso_nombre': hijo.curso.nombre,
+                'nivel': hijo.curso.nivel,
+                'periodo_actual': periodo_seleccionado,
+                'periodos_disponibles': periodos_disponibles,
+                'asistencias': asistencias_serializadas,
+                'materias': materias,
+                # Agregar información adicional del hijo
+                'fecha_nacimiento': hijo.fecha_nacimiento,
+                'grupo_sanguineo': hijo.grupo_sanguineo,
+                'telefono_emergencia': hijo.telefono_emergencia
+            }
+
+            serializer = DetalleHijoSerializer(hijo_context, context={'request': request})
+            
+            # Enriquecer la respuesta con información adicional
+            response_data = serializer.data
+            response_data.update({
+                'navegacion': self._generar_navegacion(hijo, padre),
+                'comparacion_periodos': self._generar_comparacion_periodos(hijo, periodo_seleccionado, periodos_disponibles),
+                'resumen_tendencias': self._generar_resumen_tendencias(hijo, periodos_disponibles)
+            })
+            
+            return Response(response_data)
+
+        except Padre.DoesNotExist:
+            return Response({'error': 'Perfil de padre no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+        except Alumno.DoesNotExist:
+            return Response({'error': 'Hijo no encontrado o no tienes permiso para verlo.'}, status=status.HTTP_404_NOT_FOUND)
+        except IndexError:
+            return Response({'error': 'No hay períodos con notas disponibles para este alumno.'}, status=status.HTTP_404_NOT_FOUND)
+    
+    def _generar_navegacion(self, hijo, padre):
+        """Generar información de navegación entre hermanos"""
+        hermanos = padre.hijos.exclude(id=hijo.id).values('id', 'user__first_name', 'user__last_name', 'curso__nombre')
+        
+        return {
+            'hermanos': list(hermanos),
+            'es_hijo_unico': not hermanos.exists()
+        }
+    
+    def _generar_comparacion_periodos(self, hijo, periodo_actual, periodos_disponibles):
+        """Generar comparación entre períodos"""
+        if len(periodos_disponibles) < 2:
+            return None
+        
+        # Obtener notas del período actual y anterior
+        notas_actual = Nota.objects.filter(alumno=hijo, periodo=periodo_actual).aggregate(
+            promedio=Avg('valor'),
+            total_notas=Count('id')
+        )
+        
+        if len(periodos_disponibles) > 1:
+            periodo_anterior = periodos_disponibles[1]
+            notas_anterior = Nota.objects.filter(alumno=hijo, periodo=periodo_anterior).aggregate(
+                promedio=Avg('valor'),
+                total_notas=Count('id')
+            )
+            
+            diferencia = None
+            tendencia = 'estable'
+            
+            if notas_actual['promedio'] and notas_anterior['promedio']:
+                diferencia = notas_actual['promedio'] - notas_anterior['promedio']
+                if diferencia >= 3:
+                    tendencia = 'mejorando'
+                elif diferencia <= -3:
+                    tendencia = 'empeorando'
+            
+            return {
+                'periodo_anterior': periodo_anterior,
+                'promedio_actual': round(notas_actual['promedio'], 1) if notas_actual['promedio'] else None,
+                'promedio_anterior': round(notas_anterior['promedio'], 1) if notas_anterior['promedio'] else None,
+                'diferencia': round(diferencia, 1) if diferencia else None,
+                'tendencia': tendencia,
+                'evaluaciones_actual': notas_actual['total_notas'],
+                'evaluaciones_anterior': notas_anterior['total_notas']
+            }
+        
+        return None
+    
+    def _generar_resumen_tendencias(self, hijo, periodos_disponibles):
+        """Generar análisis de tendencias académicas"""
+        if len(periodos_disponibles) < 3:
+            return None
+        
+        # Obtener promedios de los últimos 3 períodos
+        promedios_recientes = []
+        for periodo in periodos_disponibles[:3]:
+            promedio = Nota.objects.filter(
+                alumno=hijo, 
+                periodo=periodo
+            ).aggregate(promedio=Avg('valor'))['promedio']
+            
+            if promedio:
+                promedios_recientes.append({
+                    'periodo': periodo,
+                    'promedio': round(promedio, 1)
+                })
+        
+        if len(promedios_recientes) >= 2:
+            # Calcular tendencia general
+            valores = [p['promedio'] for p in promedios_recientes]
+            
+            # Tendencia simple: comparar primer y último valor
+            if valores[0] > valores[-1] + 2:
+                tendencia_general = 'descendente'
+            elif valores[0] < valores[-1] - 2:
+                tendencia_general = 'ascendente'
+            else:
+                tendencia_general = 'estable'
+            
+            return {
+                'tendencia_general': tendencia_general,
+                'promedios_recientes': promedios_recientes,
+                'mejor_periodo': max(promedios_recientes, key=lambda x: x['promedio']),
+                'peor_periodo': min(promedios_recientes, key=lambda x: x['promedio'])
+            }
+        
+        return None
+
 
 # Vistas para Asistencia
 class AsistenciaListCreateView(generics.ListCreateAPIView):
